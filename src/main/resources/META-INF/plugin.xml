@@ -1,0 +1,26 @@
+<idea-plugin>
+    <id>org.example.subsets-selector</id>
+    <name>Okta Subsets Selector</name>
+    <vendor email="support@yourcompany.com" url="http://www.yourcompany.com">YourCompany</vendor>
+
+    <description><![CDATA[
+   Okta Subsets Selector
+    ]]></description>
+
+    <!-- please see https://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/plugin_compatibility.html
+         on how to target different products -->
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- Add your extensions here -->
+    </extensions>
+
+    <actions>
+        <group id="ok.idea" text="Okta" searchable="true" description="Okta Plugin">
+            <add-to-group group-id="MainMenu" relative-to-action="ToolsMenu"/>
+            <action id="ok.subsets.select" class="com.okta.mono.ij.plug.SelectSubsetAction" text="Select Subset">
+            </action>
+        </group>
+
+    </actions>
+</idea-plugin>
