@@ -2,8 +2,11 @@ package com.okta.mono.ij.plug;
 
 import com.intellij.openapi.module.ModuleDescription;
 import com.intellij.openapi.module.ModuleManager;
+import com.intellij.openapi.module.UnloadedModuleDescription;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
+import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.openapi.vfs.pointers.VirtualFilePointer;
 import com.intellij.ui.BooleanTableCellEditor;
 import com.intellij.ui.BooleanTableCellRenderer;
 import com.intellij.ui.ColoredTableCellRenderer;
@@ -15,6 +18,8 @@ import com.intellij.util.graph.GraphGenerator;
 import com.intellij.util.graph.InboundSemiGraph;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.idea.maven.project.MavenProject;
+import org.jetbrains.idea.maven.project.MavenProjectsManager;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableColumnModel;
@@ -38,6 +43,7 @@ public class SelectSubsetDialog extends DialogWrapper {
     private final Map<String, ModuleDescription> moduleDescriptionMap;
     private TableModel tblMdl;
     private ModuleNameMatcher moduleNameMatcher;
+    private final MavenProjectsManager mavenProjectsManager;
 
     public SelectSubsetDialog(Project project) {
         super(project);
@@ -45,6 +51,8 @@ public class SelectSubsetDialog extends DialogWrapper {
         setTitle("Select and load subset");
 
         moduleManager = ModuleManager.getInstance(project);
+
+        mavenProjectsManager = MavenProjectsManager.getInstance(project);
 
         moduleDescriptions = moduleManager.getAllModuleDescriptions();
 
@@ -135,7 +143,7 @@ public class SelectSubsetDialog extends DialogWrapper {
         }
 
         if (module != null) {
-            loadModule(module, isApi, isSelenium);
+            load(module, isApi, isSelenium);
         }
 
         super.doOKAction();
@@ -152,7 +160,7 @@ public class SelectSubsetDialog extends DialogWrapper {
         }
     }
 
-    private void loadModule(final ModuleDescription module, boolean isApi, boolean isSelenium) {
+    private void load(final ModuleDescription module, boolean isApi, boolean isSelenium) {
         Graph<ModuleDescription> graph = buildGraph();
 
         Set<String> keep = new HashSet<>();
@@ -192,6 +200,19 @@ public class SelectSubsetDialog extends DialogWrapper {
         System.out.println("remove list " + remove);
 
         moduleManager.setUnloadedModules(remove);
+/**
+        List<MavenProject> rootProjects = mavenProjectsManager.getRootProjects();
+
+        System.out.println("root-projects " + rootProjects);
+
+        for (ModuleDescription moduleDescription : moduleDescriptions) {
+            if (moduleDescription instanceof UnloadedModuleDescription) {
+                List<VirtualFilePointer> contentRoots = ((UnloadedModuleDescription) moduleDescription).getContentRoots();
+                List<VirtualFile> roots = contentRoots.stream().map(p -> p.getFile()).collect(Collectors.toList());
+                mavenProjectsManager.addManagedFilesOrUnignore(roots);
+            }
+        }
+ */
     }
 
     private void loadApi(Graph<ModuleDescription> graph, Set<String> keep, String baseName) {
