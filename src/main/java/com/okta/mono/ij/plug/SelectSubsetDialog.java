@@ -2,11 +2,8 @@ package com.okta.mono.ij.plug;
 
 import com.intellij.openapi.module.ModuleDescription;
 import com.intellij.openapi.module.ModuleManager;
-import com.intellij.openapi.module.UnloadedModuleDescription;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
-import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.openapi.vfs.pointers.VirtualFilePointer;
 import com.intellij.ui.BooleanTableCellEditor;
 import com.intellij.ui.BooleanTableCellRenderer;
 import com.intellij.ui.ColoredTableCellRenderer;
@@ -18,7 +15,6 @@ import com.intellij.util.graph.GraphGenerator;
 import com.intellij.util.graph.InboundSemiGraph;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jetbrains.idea.maven.project.MavenProject;
 import org.jetbrains.idea.maven.project.MavenProjectsManager;
 
 import javax.swing.*;
@@ -37,11 +33,18 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Module selection dialog. Here we are filtering out modules based on the prefix 'runtime.'
+ * <p>
+ * The modules are presented in a table with two check boxes that can select module and facets.
+ * <p>
+ * isApi and isSelenium are facets. When either is selected the module is added to the list of modules to keep
+ */
 public class SelectSubsetDialog extends DialogWrapper {
     private final ModuleManager moduleManager;
     private final Collection<ModuleDescription> moduleDescriptions;
     private final Map<String, ModuleDescription> moduleDescriptionMap;
-    private TableModel tblMdl;
+    private TableModel tableModel;
     private ModuleNameMatcher moduleNameMatcher;
     private final MavenProjectsManager mavenProjectsManager;
 
@@ -63,13 +66,15 @@ public class SelectSubsetDialog extends DialogWrapper {
 
     @Override
     protected @Nullable JComponent createCenterPanel() {
+        final JPanel centerPanel = new JPanel();
+
+        // setup ui - a table in a scroll pane. table will contain a short module list.
         JBScrollPane scrollPane = new JBScrollPane();
         System.getProperties().list(System.out);
+        centerPanel.setLayout(new BorderLayout());
+        centerPanel.add(scrollPane, BorderLayout.CENTER);
 
-        final JPanel panel = new JPanel();
-        panel.setLayout(new BorderLayout());
-        panel.add(scrollPane, BorderLayout.CENTER);
-        //
+        // prepare data for table model
         final ModuleDescription[] modules = moduleManager.getAllModuleDescriptions().stream().collect(Collectors.toList()).toArray(new ModuleDescription[0]);
         final List<Object[]> data = new ArrayList<>();
         for (int i = 0; i < modules.length; i++) {
@@ -78,11 +83,11 @@ public class SelectSubsetDialog extends DialogWrapper {
                 data.add(new Object[]{module, false, false});
             }
         }
-        //
-        tblMdl = new DefaultTableModel(data.toArray(new Object[][]{{}}), new Object[]{"module", "api", "selenium"});
+        //  table has 3 columns - 1) readonly module name 2) editable boolean column called 'api' 3) editable boolean column called selenium
+        tableModel = new DefaultTableModel(data.toArray(new Object[][]{{}}), new Object[]{"module", "api", "selenium"});
         TableColumnModel tblCols = new DefaultTableColumnModel();
         {
-            // table column for the module
+            // table column for the module name; readonly
             TableColumn moduleColumn = new TableColumn(0, 100);
             moduleColumn.setPreferredWidth(100);
             moduleColumn.setHeaderValue("Module");
@@ -96,7 +101,7 @@ public class SelectSubsetDialog extends DialogWrapper {
             tblCols.addColumn(moduleColumn);
         }
         {
-            // table column for api tests
+            // table column for api facet - editable
             TableColumn moduleColumn = new TableColumn(1, 3);
             moduleColumn.setPreferredWidth(3);
             moduleColumn.setHeaderValue("Api");
@@ -105,7 +110,7 @@ public class SelectSubsetDialog extends DialogWrapper {
             tblCols.addColumn(moduleColumn);
         }
         {
-            // table column for selenium tests
+            // table column for selenium facet - editable
             TableColumn moduleColumn = new TableColumn(2, 3);
             moduleColumn.setPreferredWidth(3);
             moduleColumn.setHeaderValue("Selenium");
@@ -114,11 +119,11 @@ public class SelectSubsetDialog extends DialogWrapper {
             tblCols.addColumn(moduleColumn);
         }
 
-        final JBTable table = new JBTable(tblMdl, tblCols);
+        final JBTable table = new JBTable(tableModel, tblCols);
 
         scrollPane.getViewport().add(table);
 
-        return panel;
+        return centerPanel;
     }
 
     private boolean isIncluded(ModuleDescription module) {
@@ -132,16 +137,18 @@ public class SelectSubsetDialog extends DialogWrapper {
         ModuleDescription module = null;
         boolean isApi = false;
         boolean isSelenium = false;
-        for (int i = 0; i < tblMdl.getRowCount(); i++) {
-            isApi = (boolean) tblMdl.getValueAt(i, 1);
-            isSelenium = (boolean) tblMdl.getValueAt(i, 2);
+        // find one module with either api or selenium value of 'true'
+        for (int i = 0; i < tableModel.getRowCount(); i++) {
+            isApi = (boolean) tableModel.getValueAt(i, 1);
+            isSelenium = (boolean) tableModel.getValueAt(i, 2);
 
             if (isApi || isSelenium) {
-                module = (ModuleDescription) tblMdl.getValueAt(i, 0);
+                module = (ModuleDescription) tableModel.getValueAt(i, 0);
                 break;
             }
         }
 
+        // we are only loading one module at this point - the first we encounter when checking values for facets ( api and selenium )
         if (module != null) {
             load(module, isApi, isSelenium);
         }
@@ -149,10 +156,14 @@ public class SelectSubsetDialog extends DialogWrapper {
         super.doOKAction();
     }
 
+    /**
+     * recursively add module and it's dependencies to the keep list
+     */
     private void keep(Graph<ModuleDescription> graph, ModuleDescription module, Set<String> keep) {
         if (!keep.add(module.getName())) {
             return;
         }
+
         Iterator<ModuleDescription> in = graph.getIn(module);
         while (in.hasNext()) {
             ModuleDescription d = in.next();
@@ -160,6 +171,9 @@ public class SelectSubsetDialog extends DialogWrapper {
         }
     }
 
+    /**
+     * Build unload list of modules and unload them
+     */
     private void load(final ModuleDescription module, boolean isApi, boolean isSelenium) {
         Graph<ModuleDescription> graph = buildGraph();
 
@@ -190,28 +204,28 @@ public class SelectSubsetDialog extends DialogWrapper {
 
         List<String> all = moduleDescriptions.stream().map(m -> m.getName()).collect(Collectors.toList());
 
-        List<String> remove = new ArrayList<>();
+        List<String> unload = new ArrayList<>();
         for (String candidate : all) {
             if (!keep.contains(candidate)) {
-                remove.add(candidate);
+                unload.add(candidate);
             }
         }
 
-        System.out.println("remove list " + remove);
+        System.out.println("unload list " + unload);
 
-        moduleManager.setUnloadedModules(remove);
+        moduleManager.setUnloadedModules(unload);
 /**
-        List<MavenProject> rootProjects = mavenProjectsManager.getRootProjects();
+ List<MavenProject> rootProjects = mavenProjectsManager.getRootProjects();
 
-        System.out.println("root-projects " + rootProjects);
+ System.out.println("root-projects " + rootProjects);
 
-        for (ModuleDescription moduleDescription : moduleDescriptions) {
-            if (moduleDescription instanceof UnloadedModuleDescription) {
-                List<VirtualFilePointer> contentRoots = ((UnloadedModuleDescription) moduleDescription).getContentRoots();
-                List<VirtualFile> roots = contentRoots.stream().map(p -> p.getFile()).collect(Collectors.toList());
-                mavenProjectsManager.addManagedFilesOrUnignore(roots);
-            }
-        }
+ for (ModuleDescription moduleDescription : moduleDescriptions) {
+ if (moduleDescription instanceof UnloadedModuleDescription) {
+ List<VirtualFilePointer> contentRoots = ((UnloadedModuleDescription) moduleDescription).getContentRoots();
+ List<VirtualFile> roots = contentRoots.stream().map(p -> p.getFile()).collect(Collectors.toList());
+ mavenProjectsManager.addManagedFilesOrUnignore(roots);
+ }
+ }
  */
     }
 
@@ -253,6 +267,4 @@ public class SelectSubsetDialog extends DialogWrapper {
 
         return modulesGraph;
     }
-
-
 }
