@@ -61,6 +61,8 @@ public class SelectSubsetDialog extends DialogWrapper {
 
         moduleDescriptionMap = moduleDescriptions.stream().collect(Collectors.toMap((v) -> v.getName(), v -> v));
 
+        moduleNameMatcher = new ModuleNameMatcher();
+
         init();
     }
 
@@ -79,7 +81,7 @@ public class SelectSubsetDialog extends DialogWrapper {
         final List<Object[]> data = new ArrayList<>();
         for (int i = 0; i < modules.length; i++) {
             ModuleDescription module = modules[i];
-            if (isIncluded(module)) {
+            if (moduleNameMatcher.isIncluded(module.getName())) {
                 data.add(new Object[]{module, false, false});
             }
         }
@@ -124,12 +126,6 @@ public class SelectSubsetDialog extends DialogWrapper {
         scrollPane.getViewport().add(table);
 
         return centerPanel;
-    }
-
-    private boolean isIncluded(ModuleDescription module) {
-        moduleNameMatcher = new ModuleNameMatcher();
-
-        return moduleNameMatcher.isIncluded(module.getName());
     }
 
     @Override
