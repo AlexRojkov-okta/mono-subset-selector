@@ -3,129 +3,184 @@ package com.okta.mono.ij.plug;
 import com.intellij.openapi.module.ModuleDescription;
 import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.project.ProjectManager;
+import com.intellij.openapi.ui.DialogWrapper;
+import com.intellij.ui.BooleanTableCellEditor;
+import com.intellij.ui.BooleanTableCellRenderer;
+import com.intellij.ui.ColoredTableCellRenderer;
+import com.intellij.ui.components.JBScrollPane;
+import com.intellij.ui.table.JBTable;
 import com.intellij.util.graph.CachingSemiGraph;
 import com.intellij.util.graph.Graph;
 import com.intellij.util.graph.GraphGenerator;
 import com.intellij.util.graph.InboundSemiGraph;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.KeyEvent;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
+import javax.swing.table.DefaultTableColumnModel;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableColumn;
+import javax.swing.table.TableColumnModel;
+import javax.swing.table.TableModel;
+import java.awt.*;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Enumeration;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
-public class SelectSubsetDialog extends JDialog {
-    private JPanel contentPane;
-    private JButton buttonOK;
-    private JButton buttonCancel;
-    private JPanel content;
-    private final ButtonGroup modulesGroup;
-    private Project project;
-    private ModuleManager moduleManager;
+public class SelectSubsetDialog extends DialogWrapper {
+    private final ModuleManager moduleManager;
+    private final Collection<ModuleDescription> moduleDescriptions;
+    private final Map<String, ModuleDescription> moduleDescriptionMap;
+    private TableModel tblMdl;
+    private ModuleNameMatcher moduleNameMatcher;
 
-    public SelectSubsetDialog() {
-        setContentPane(contentPane);
-        setModal(true);
-        getRootPane().setDefaultButton(buttonOK);
+    public SelectSubsetDialog(Project project) {
+        super(project);
 
-        buttonOK.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                onOK();
-            }
-        });
-
-        buttonCancel.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                onCancel();
-            }
-        });
-
-        // call onCancel() when cross is clicked
-        setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
-        addWindowListener(new WindowAdapter() {
-            public void windowClosing(WindowEvent e) {
-                onCancel();
-            }
-        });
-
-        // call onCancel() on ESCAPE
-        contentPane.registerKeyboardAction(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                onCancel();
-            }
-        }, KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT);
-        //
-
-        modulesGroup = new ButtonGroup();
-        content.setLayout(new BoxLayout(content, 1));
-
-        project = ProjectManager.getInstance().getOpenProjects()[0];
+        setTitle("Select and load subset");
 
         moduleManager = ModuleManager.getInstance(project);
 
-        for (ModuleDescription description : moduleManager.getAllModuleDescriptions()) {
-            final String module = description.getName();
+        moduleDescriptions = moduleManager.getAllModuleDescriptions();
 
-            if (module.matches("runtimes\\.[a-zA-Z-]+\\.web$") || module.contains("foo") || module.contains("bar")) {
+        moduleDescriptionMap = moduleDescriptions.stream().collect(Collectors.toMap((v) -> v.getName(), v -> v));
 
-                JCheckBox moduleCheckBox = new JCheckBox(module);
-
-                moduleCheckBox.putClientProperty("module", module);
-
-                modulesGroup.add(moduleCheckBox);
-
-                content.add(moduleCheckBox);
-            }
-        }
+        init();
     }
 
-    private void onOK() {
-        // add your code here\
-        Enumeration<AbstractButton> elements = modulesGroup.getElements();
-        String module = null;
-        while (elements.hasMoreElements()) {
-            AbstractButton abstractButton = elements.nextElement();
-            if (abstractButton.isSelected()) {
-                module = (String) abstractButton.getClientProperty("module");
+    @Override
+    protected @Nullable JComponent createCenterPanel() {
+        JBScrollPane scrollPane = new JBScrollPane();
+        System.getProperties().list(System.out);
+
+        final JPanel panel = new JPanel();
+        panel.setLayout(new BorderLayout());
+        panel.add(scrollPane, BorderLayout.CENTER);
+        //
+        final ModuleDescription[] modules = moduleManager.getAllModuleDescriptions().stream().collect(Collectors.toList()).toArray(new ModuleDescription[0]);
+        final List<Object[]> data = new ArrayList<>();
+        for (int i = 0; i < modules.length; i++) {
+            ModuleDescription module = modules[i];
+            if (isIncluded(module)) {
+                data.add(new Object[]{module, false, false});
+            }
+        }
+        //
+        tblMdl = new DefaultTableModel(data.toArray(new Object[][]{{}}), new Object[]{"module", "api", "selenium"});
+        TableColumnModel tblCols = new DefaultTableColumnModel();
+        {
+            // table column for the module
+            TableColumn moduleColumn = new TableColumn(0, 100);
+            moduleColumn.setPreferredWidth(100);
+            moduleColumn.setHeaderValue("Module");
+            moduleColumn.setCellRenderer(new ColoredTableCellRenderer() {
+                @Override
+                protected void customizeCellRenderer(@NotNull JTable table, @Nullable Object value, boolean selected, boolean hasFocus, int row, int column) {
+                    ModuleDescription module = (ModuleDescription) value;
+                    append(module.getName());
+                }
+            });
+            tblCols.addColumn(moduleColumn);
+        }
+        {
+            // table column for api tests
+            TableColumn moduleColumn = new TableColumn(1, 3);
+            moduleColumn.setPreferredWidth(3);
+            moduleColumn.setHeaderValue("Api");
+            moduleColumn.setCellRenderer(new BooleanTableCellRenderer());
+            moduleColumn.setCellEditor(new BooleanTableCellEditor());
+            tblCols.addColumn(moduleColumn);
+        }
+        {
+            // table column for selenium tests
+            TableColumn moduleColumn = new TableColumn(2, 3);
+            moduleColumn.setPreferredWidth(3);
+            moduleColumn.setHeaderValue("Selenium");
+            moduleColumn.setCellRenderer(new BooleanTableCellRenderer());
+            moduleColumn.setCellEditor(new BooleanTableCellEditor());
+            tblCols.addColumn(moduleColumn);
+        }
+
+        final JBTable table = new JBTable(tblMdl, tblCols);
+
+        scrollPane.getViewport().add(table);
+
+        return panel;
+    }
+
+    private boolean isIncluded(ModuleDescription module) {
+        moduleNameMatcher = new ModuleNameMatcher();
+
+        return moduleNameMatcher.isIncluded(module.getName());
+    }
+
+    @Override
+    protected void doOKAction() {
+        ModuleDescription module = null;
+        boolean isApi = false;
+        boolean isSelenium = false;
+        for (int i = 0; i < tblMdl.getRowCount(); i++) {
+            isApi = (boolean) tblMdl.getValueAt(i, 1);
+            isSelenium = (boolean) tblMdl.getValueAt(i, 2);
+
+            if (isApi || isSelenium) {
+                module = (ModuleDescription) tblMdl.getValueAt(i, 0);
+                break;
             }
         }
 
         if (module != null) {
-            loadModule(module);
+            loadModule(module, isApi, isSelenium);
         }
 
-        dispose();
+        super.doOKAction();
     }
 
-    private void loadModule(final String module) {
-        Optional<ModuleDescription> first = moduleManager.getAllModuleDescriptions().stream().filter(m -> module.equals(m.getName())).findFirst();
+    private void keep(Graph<ModuleDescription> graph, ModuleDescription module, Set<String> keep) {
+        if (!keep.add(module.getName())) {
+            return;
+        }
+        Iterator<ModuleDescription> in = graph.getIn(module);
+        while (in.hasNext()) {
+            ModuleDescription d = in.next();
+            keep(graph, d, keep);
+        }
+    }
 
-        ModuleDescription moduleDescription = first.get();
-
+    private void loadModule(final ModuleDescription module, boolean isApi, boolean isSelenium) {
         Graph<ModuleDescription> graph = buildGraph();
 
-        Iterator<ModuleDescription> in = graph.getIn(moduleDescription);
-        List<String> keep = new ArrayList<>();
-        keep.add(module);
-        keep.add(module.replace(".web", ".api"));
-        while (in.hasNext()) {
-            keep.add(in.next().getName());
+        Set<String> keep = new HashSet<>();
+
+        keep(graph, module, keep);
+
+        if (moduleDescriptionMap.get(module.getName() + ".api") != null) {
+            keep(graph, moduleDescriptionMap.get(module.getName() + ".api"), keep);
+        }
+
+        if (moduleDescriptionMap.get(module.getName() + ".web") != null) {
+            keep(graph, moduleDescriptionMap.get(module.getName() + ".web"), keep);
+        }
+
+        if (module.getName().startsWith("runtimes.")) {//test doesn't have runtime
+            String baseName = module.getName().substring("runtimes.".length());
+            if (isApi) {
+                loadApi(graph, keep, baseName);
+            }
+
+            if (isSelenium) {
+                loadSelenium(graph, keep, baseName);
+            }
         }
 
         System.out.println("keep list " + keep);
 
-        List<String> all = moduleManager.getAllModuleDescriptions().stream().map(m -> m.getName()).collect(Collectors.toList());
+        List<String> all = moduleDescriptions.stream().map(m -> m.getName()).collect(Collectors.toList());
 
         List<String> remove = new ArrayList<>();
         for (String candidate : all) {
@@ -139,25 +194,37 @@ public class SelectSubsetDialog extends JDialog {
         moduleManager.setUnloadedModules(remove);
     }
 
-    private void onCancel() {
-        // add your code here if necessary
-        dispose();
+    private void loadApi(Graph<ModuleDescription> graph, Set<String> keep, String baseName) {
+        String name = "tests.api-" + baseName + ".client-test";
+        if (moduleDescriptionMap.get(name) != null) {
+            keep(graph, moduleDescriptionMap.get(name), keep);
+        }
     }
 
-    public Graph<ModuleDescription> buildGraph() {
-        Collection<ModuleDescription> descriptions = moduleManager.getAllModuleDescriptions();
+    private void loadSelenium(Graph<ModuleDescription> graph, Set<String> keep, String baseName) {
+        String name = "tests.selenium-" + baseName;
 
-        Map<String, ModuleDescription> descriptionsMap = descriptions.stream().collect(Collectors.toMap((v) -> v.getName(), v -> v));
+        if (moduleDescriptionMap.get(name) != null) {
+            keep(graph, moduleDescriptionMap.get(name), keep);
+        }
 
+        name = name + ".client-test";
+
+        if (moduleDescriptionMap.get(name) != null) {
+            keep(graph, moduleDescriptionMap.get(name), keep);
+        }
+    }
+
+    private Graph<ModuleDescription> buildGraph() {
         InboundSemiGraph<ModuleDescription> descriptionsGraph = new InboundSemiGraph<>() {
             @Override
             public @NotNull Collection<ModuleDescription> getNodes() {
-                return descriptions;
+                return moduleDescriptions;
             }
 
             @Override
             public @NotNull Iterator<ModuleDescription> getIn(ModuleDescription description) {
-                return description.getDependencyModuleNames().stream().map(s -> descriptionsMap.get(s)).collect(Collectors.toList()).iterator();
+                return description.getDependencyModuleNames().stream().map(s -> moduleDescriptionMap.get(s)).collect(Collectors.toList()).iterator();
             }
         };
 
@@ -165,5 +232,6 @@ public class SelectSubsetDialog extends JDialog {
 
         return modulesGraph;
     }
+
 
 }

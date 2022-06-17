@@ -1,10 +1,10 @@
 <idea-plugin>
-    <id>org.example.subsets-selector</id>
-    <name>Okta Subsets Selector</name>
-    <vendor email="support@yourcompany.com" url="http://www.yourcompany.com">YourCompany</vendor>
+    <id>com.okta.mono.ij</id>
+    <name>Okta Monolith Plugin</name>
+    <vendor email="alex.rojkov@okta.com" url="http://www.okta.com">Okta, Inc.</vendor>
 
     <description><![CDATA[
-   Okta Subsets Selector
+   Okta Monolith Plugin
     ]]></description>
 
     <!-- please see https://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/plugin_compatibility.html
@@ -12,14 +12,14 @@
     <depends>com.intellij.modules.platform</depends>
 
     <extensions defaultExtensionNs="com.intellij">
-        <!-- Add your extensions here -->
     </extensions>
 
     <actions>
         <group id="ok.idea" text="Okta" searchable="true" description="Okta Plugin">
-            <add-to-group group-id="MainMenu" relative-to-action="ToolsMenu"/>
-            <action id="ok.subsets.select" class="com.okta.mono.ij.plug.SelectSubsetAction" text="Select Subset">
-            </action>
+            <add-to-group group-id="MainMenu" relative-to-action="ToolsMenu" anchor="after">
+            </add-to-group>
+            <action id="ok.subsets.select" class="com.okta.mono.ij.plug.SelectSubsetAction" text="Select Subset"/>
+            <action id="ok.subsets.reset" class="com.okta.mono.ij.plug.ResetSelectionAction" text="Reset Subset Selection"/>
         </group>
 
     </actions>
