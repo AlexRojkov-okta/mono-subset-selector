@@ -6,6 +6,7 @@ public class ModuleNameMatcher {
     private static Pattern runtimePattern = Pattern.compile("^runtimes\\.[a-z-A-Z]*\\z");
 
     boolean isIncluded(String name) {
+        if (true) return true;
         boolean isIncluded = runtimePattern.matcher(name).matches();
 
         // below three are for test project cause okta-core is too big
