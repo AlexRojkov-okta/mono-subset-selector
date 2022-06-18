@@ -43,6 +43,7 @@ import java.util.stream.Collectors;
  * isApi and isSelenium are facets. When either is selected the module is added to the list of modules to keep
  */
 public class SelectSubsetDialog extends DialogWrapper {
+    public static final String RUNTIMES_PREFIX = "runtimes.";
     //data
     private final ModuleManager moduleManager;
     private final MavenProjectsManager mavenProjectsManager;
@@ -183,24 +184,26 @@ public class SelectSubsetDialog extends DialogWrapper {
             selected.add(web.get());
         }
 
-        /* FIX - ME!
-        final String baseName = project.getMavenId().getArtifactId().substring("runtimes.".length());
-
-        if (isApiTest) {
-            "tests.api-" + baseName + ".client-test";
-            projects.stream().filter(p->p.getMavenId().getArtifactId().equals())
-        }
-        if (project.getName().startsWith("runtimes.")) {//test doesn't have runtime
-            String baseName = project.getName().substring("runtimes.".length());
+        // the if is for a test project that does not have proper okta-core structure
+        if (project.getMavenId().getArtifactId().startsWith(RUNTIMES_PREFIX)) {
+            final String baseName = project.getMavenId().getArtifactId().substring("runtimes.".length());
             if (isApiTest) {
-                loadApi(projectGraph, selected, baseName);
+                final String name = "tests.api-" + baseName + ".client-test";
+                projects.stream().filter(p -> p.getMavenId().getArtifactId().equals(name))
+                        .findFirst()
+                        .ifPresent((p) -> {
+                            selected.add(p);
+                        });
             }
-
             if (isSelenium) {
-                loadSelenium(projectGraph, selected, baseName);
+                final String name = "tests.selenium-" + baseName + ".client-test";
+                projects.stream().filter(p -> p.getMavenId().getArtifactId().equals(name))
+                        .findFirst()
+                        .ifPresent((p) -> {
+                            selected.add(p);
+                        });
             }
         }
-        */
 
         // MavenProject doesn't override equals/hashCode - relying on identity
         final Set<MavenProject> selectedWithDependencies = new HashSet<>();

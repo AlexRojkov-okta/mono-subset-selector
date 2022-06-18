@@ -18,27 +18,16 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- *  Reset the modules to their default state - no modules should remain unloaded after this action complets
- *
+ * Reset the modules to their default state - no modules should remain unloaded after this action complets
  */
 public class ResetSelectionAction extends AnAction {
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
         final Project project = e.getData(CommonDataKeys.PROJECT);
 
-        final ModuleManager moduleManager = ModuleManager.getInstance(project);
-
-        // doing this alone doesn't look sufficient for all modules to be brought back
-        moduleManager.setUnloadedModules(Collections.emptyList());
-
-        // asking mavenProjectsManager seems to be able to bring back all modules
-        // but the action takes much longer
         MavenProjectsManager mavenProjectsManager = MavenProjectsManager.getInstance(project);
-        List<String> ignoredFilesPaths = mavenProjectsManager.getIgnoredFilesPaths();
-        mavenProjectsManager.removeIgnoredFilesPaths(ignoredFilesPaths);
-        List<VirtualFile> projectsFiles = mavenProjectsManager.getProjectsFiles();
-        mavenProjectsManager.addManagedFilesOrUnignore(projectsFiles);
-        mavenProjectsManager.doSave();
+
+        mavenProjectsManager.setIgnoredFilesPaths(Collections.emptyList());
     }
 
     @Override
