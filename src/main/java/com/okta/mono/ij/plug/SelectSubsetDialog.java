@@ -1,6 +1,5 @@
 package com.okta.mono.ij.plug;
 
-import com.intellij.openapi.module.ModuleDescription;
 import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
@@ -27,6 +26,7 @@ import javax.swing.table.TableColumn;
 import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
 import java.awt.*;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Module selection dialog. Here we are filtering out modules based on the prefix 'runtime.'
@@ -141,32 +140,6 @@ public class SelectSubsetDialog extends DialogWrapper {
         System.out.println("SelectSubsetDialog.initData root projects " + rootProjects);
         System.out.println("SelectSubsetDialog.initData project crappies " + projects);
     }
-/*
-
-    class Crappy {
-        final MavenProject project;
-
-        public Crappy(MavenProject project) {
-            this.project = project;
-        }
-
-        boolean isChildOfAny(Set<MavenId> projects) {
-            MavenProject project = this.project;
-            while ((project = mavenProjectsManager.findProject(project.getMavenId())) != null) {
-                if (projects.contains(project.getMavenId())) {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        @Override
-        public String toString() {
-            return "Crappy [" + project + ']';
-        }
-    }
-*/
 
     @Override
     protected void doOKAction() {
@@ -194,40 +167,23 @@ public class SelectSubsetDialog extends DialogWrapper {
     }
 
     /**
-     * recursively add module and it's dependencies to the keep list
-     */
-    private void keep(Graph<ModuleDescription> graph, ModuleDescription module, Set<String> keep) {
-        if (!keep.add(module.getName())) {
-            return;
-        }
-
-        Iterator<ModuleDescription> in = graph.getIn(module);
-        while (in.hasNext()) {
-            ModuleDescription d = in.next();
-            keep(graph, d, keep);
-        }
-    }
-
-    /**
      * Build unload list of modules and unload them
      */
     private void load(final MavenProject project, boolean isApiTest, boolean isSelenium) {
-        final Graph<MavenProject> projectGraph = GraphAlgorithms.getInstance().invertEdgeDirections(buildProjectGraph());
-
-        Set<MavenProject> loadList = new HashSet<>();
-        loadList.add(project);
+        final Set<MavenProject> selected = new HashSet<>();
+        selected.add(project);
 
         Optional<MavenProject> api = projects.stream().filter(p -> p.getMavenId().getArtifactId().equals(project.getMavenId().getArtifactId() + ".api")).findFirst();
         if (api.isPresent()) {
-            loadList.add(api.get());
+            selected.add(api.get());
         }
 
         Optional<MavenProject> web = projects.stream().filter(p -> p.getMavenId().getArtifactId().equals(project.getMavenId().getArtifactId() + ".web")).findFirst();
         if (web.isPresent()) {
-            loadList.add(web.get());
+            selected.add(web.get());
         }
 
-        /*
+        /* FIX - ME!
         final String baseName = project.getMavenId().getArtifactId().substring("runtimes.".length());
 
         if (isApiTest) {
@@ -237,61 +193,52 @@ public class SelectSubsetDialog extends DialogWrapper {
         if (project.getName().startsWith("runtimes.")) {//test doesn't have runtime
             String baseName = project.getName().substring("runtimes.".length());
             if (isApiTest) {
-                loadApi(projectGraph, loadList, baseName);
+                loadApi(projectGraph, selected, baseName);
             }
 
             if (isSelenium) {
-                loadSelenium(projectGraph, loadList, baseName);
+                loadSelenium(projectGraph, selected, baseName);
             }
         }
         */
 
         // MavenProject doesn't override equals/hashCode - relying on identity
-        Set<MavenProject> collect = new HashSet<>();
-        for (MavenProject p : loadList) {
-            GraphAlgorithms.getInstance().collectOutsRecursively(projectGraph, p, collect);
+        final Set<MavenProject> selectedWithDependencies = new HashSet<>();
+        final Graph<MavenProject> projectGraph = GraphAlgorithms.getInstance().invertEdgeDirections(buildProjectGraph());
+        for (MavenProject p : selected) {
+            GraphAlgorithms.getInstance().collectOutsRecursively(projectGraph, p, selectedWithDependencies);
         }
 
-        
+        final Set<MavenProject> parents = new HashSet<>();
+        for (MavenProject p : selectedWithDependencies) {
+            MavenProject parent = p;
 
-        System.out.println("load list " + collect);
-/**
- List<MavenProject> rootProjects = mavenProjectsManager.getRootProjects();
+            while ((parent = mavenProjectsManager.findProject(parent.getParentId())) != null) {
+                if (parents.contains(parent)) {
+                    break;
+                }
 
- System.out.println("root-projects " + rootProjects);
+                parents.add(parent);
 
- for (ModuleDescription moduleDescription : moduleDescriptions) {
- if (moduleDescription instanceof UnloadedModuleDescription) {
- List<VirtualFilePointer> contentRoots = ((UnloadedModuleDescription) moduleDescription).getContentRoots();
- List<VirtualFile> roots = contentRoots.stream().map(p -> p.getFile()).collect(Collectors.toList());
- mavenProjectsManager.addManagedFilesOrUnignore(roots);
- }
- }
- */
+                if (rootProjectIds.contains(parent.getMavenId())) {
+                    break;
+                }
+            }
+        }
+
+        selectedWithDependencies.addAll(parents);
+
+        System.out.println("load list " + selectedWithDependencies);
+
+        List<String> ignoreList = new ArrayList<>();
+        for (MavenProject p : projects) {
+            if (!selectedWithDependencies.contains(p)) {
+                ignoreList.add(p.getFile().getPath());
+            }
+        }
+
+        mavenProjectsManager.setIgnoredFilesPaths(ignoreList);
     }
-/*
-
-    private void loadApi(Graph<ModuleDescription> graph, Set<String> keep, String baseName) {
-        String name = "tests.api-" + baseName + ".client-test";
-        if (moduleDescriptionMap.get(name) != null) {
-            keep(graph, moduleDescriptionMap.get(name), keep);
-        }
-    }
-
-    private void loadSelenium(Graph<ModuleDescription> graph, Set<String> keep, String baseName) {
-        String name = "tests.selenium-" + baseName;
-
-        if (moduleDescriptionMap.get(name) != null) {
-            keep(graph, moduleDescriptionMap.get(name), keep);
-        }
-
-        name = name + ".client-test";
-
-        if (moduleDescriptionMap.get(name) != null) {
-            keep(graph, moduleDescriptionMap.get(name), keep);
-        }
-    }
-*/
 
     private Graph<MavenProject> buildProjectGraph() {
         InboundSemiGraph<MavenProject> descriptionsGraph = new InboundSemiGraph<>() {
