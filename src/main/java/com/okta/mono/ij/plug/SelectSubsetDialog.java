@@ -240,27 +240,21 @@ public class SelectSubsetDialog extends DialogWrapper {
                 selectedWithDependencies.stream().map((p) -> p.getMavenId().getArtifactId()).collect(Collectors.toList())
         ));
 
-        List<String> ignoreList = new ArrayList<>();
+        List<String> ignoreFiles = new ArrayList<>();
+        List<String> ignoreModules = new ArrayList<>();
         for (MavenProject p : projects) {
             if (!selectedWithDependencies.contains(p)) {
-                if (unloadMode == UnloadMode.MAVEN) {
-                    ignoreList.add(p.getFile().getPath());
-                } else {
-                    String moduleName = p.getMavenId().getArtifactId();
-                    if (moduleName.startsWith("tests.api-")) {
-                        moduleName = moduleName.substring(6);
-                    }
-                    ignoreList.add(moduleName);
-                }
+                ignoreFiles.add(p.getFile().getPath());
+                ignoreModules.add(p.getMavenId().getArtifactId());
             }
         }
 
-        System.out.println(String.format("ignore list for %s has %d elements", project, ignoreList.size()));
+        System.out.println(String.format("ignore list for %s has %d elements", project, ignoreFiles.size()));
 
         if (unloadMode == UnloadMode.MAVEN) {
-            mavenProjectsManager.setIgnoredFilesPaths(ignoreList);
+            mavenProjectsManager.setIgnoredFilesPaths(ignoreFiles);
         } else {
-            moduleManager.setUnloadedModules(ignoreList);
+            moduleManager.setUnloadedModules(ignoreModules);
         }
     }
 
