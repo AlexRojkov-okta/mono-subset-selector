@@ -26,6 +26,7 @@ import javax.swing.table.TableColumn;
 import javax.swing.table.TableColumnModel;
 import javax.swing.table.TableModel;
 import java.awt.*;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -43,7 +44,10 @@ import java.util.stream.Collectors;
  * isApi and isSelenium are facets. When either is selected the module is added to the list of modules to keep
  */
 public class SelectSubsetDialog extends DialogWrapper {
+    public static UnloadMode unloadMode = new File("/tmp/subset-unload-maven").exists() ? UnloadMode.MAVEN : UnloadMode.IDEA;
+
     public static final String RUNTIMES_PREFIX = "runtimes.";
+
     //data
     private final ModuleManager moduleManager;
     private final MavenProjectsManager mavenProjectsManager;
@@ -73,7 +77,8 @@ public class SelectSubsetDialog extends DialogWrapper {
     }
 
     @Override
-    protected @Nullable JComponent createCenterPanel() {
+    protected @Nullable
+    JComponent createCenterPanel() {
         final JPanel centerPanel = new JPanel();
 
         // setup ui - a table in a scroll pane. table will contain a short module list.
@@ -231,31 +236,48 @@ public class SelectSubsetDialog extends DialogWrapper {
 
         selectedWithDependencies.addAll(parents);
 
-        System.out.println("load list " + selectedWithDependencies);
+        System.out.println(String.format("keep list for %s has %d elements -> [%s]", project, selectedWithDependencies.size(),
+                selectedWithDependencies.stream().map((p) -> p.getMavenId().getArtifactId()).collect(Collectors.toList())
+        ));
 
         List<String> ignoreList = new ArrayList<>();
         for (MavenProject p : projects) {
             if (!selectedWithDependencies.contains(p)) {
-                ignoreList.add(p.getFile().getPath());
+                if (unloadMode == UnloadMode.MAVEN) {
+                    ignoreList.add(p.getFile().getPath());
+                } else {
+                    String moduleName = p.getMavenId().getArtifactId();
+                    if (moduleName.startsWith("tests.api-")) {
+                        moduleName = moduleName.substring(6);
+                    }
+                    ignoreList.add(moduleName);
+                }
             }
         }
 
-        mavenProjectsManager.setIgnoredFilesPaths(ignoreList);
+        System.out.println(String.format("ignore list for %s has %d elements", project, ignoreList.size()));
+
+        if (unloadMode == UnloadMode.MAVEN) {
+            mavenProjectsManager.setIgnoredFilesPaths(ignoreList);
+        } else {
+            moduleManager.setUnloadedModules(ignoreList);
+        }
     }
 
     private Graph<MavenProject> buildProjectGraph() {
         InboundSemiGraph<MavenProject> descriptionsGraph = new InboundSemiGraph<>() {
             @Override
-            public @NotNull Collection<MavenProject> getNodes() {
+            public @NotNull
+            Collection<MavenProject> getNodes() {
                 return projects;
             }
 
             @Override
-            public @NotNull Iterator<MavenProject> getIn(MavenProject project) {
-                System.out.println(" project " + project + " -> " + project.getDependencies());
+            public @NotNull
+            Iterator<MavenProject> getIn(MavenProject project) {
                 List<MavenProject> dependencies = project.getDependencies().stream().filter(a -> projectIds.contains(a.getMavenId())).map(a -> mavenProjectsManager.findProject(a)).collect(Collectors.toList());
 
-                System.out.println("SelectSubsetDialog.getIn " + dependencies);
+                System.out.println(String.format("project %s depends on [%s]", project, dependencies));
 
                 return dependencies.iterator();
             }
@@ -265,4 +287,9 @@ public class SelectSubsetDialog extends DialogWrapper {
 
         return projectGraph;
     }
+}
+
+enum UnloadMode {
+    MAVEN,
+    IDEA
 }

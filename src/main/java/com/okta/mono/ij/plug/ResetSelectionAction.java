@@ -25,9 +25,13 @@ public class ResetSelectionAction extends AnAction {
     public void actionPerformed(@NotNull AnActionEvent e) {
         final Project project = e.getData(CommonDataKeys.PROJECT);
 
-        MavenProjectsManager mavenProjectsManager = MavenProjectsManager.getInstance(project);
-
-        mavenProjectsManager.setIgnoredFilesPaths(Collections.emptyList());
+        if (SelectSubsetDialog.unloadMode == UnloadMode.IDEA) {
+            ModuleManager moduleManager = ModuleManager.getInstance(project);
+            moduleManager.setUnloadedModules(Collections.emptyList());
+        } else {
+            MavenProjectsManager mavenProjectsManager = MavenProjectsManager.getInstance(project);
+            mavenProjectsManager.setIgnoredFilesPaths(Collections.emptyList());
+        }
     }
 
     @Override
