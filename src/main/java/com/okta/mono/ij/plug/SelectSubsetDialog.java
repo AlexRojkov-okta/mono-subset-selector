@@ -236,7 +236,7 @@ public class SelectSubsetDialog extends DialogWrapper {
 
         selectedWithDependencies.addAll(parents);
 
-        System.out.println(String.format("keep list for %s has %d elements -> [%s]", project, selectedWithDependencies.size(),
+        System.out.println(String.format("keep list for %s has %d elements -> %s", project, selectedWithDependencies.size(),
                 selectedWithDependencies.stream().map((p) -> p.getMavenId().getArtifactId()).collect(Collectors.toList())
         ));
 
@@ -252,7 +252,19 @@ public class SelectSubsetDialog extends DialogWrapper {
         System.out.println(String.format("ignore list for %s has %d elements", project, ignoreFiles.size()));
 
         if (unloadMode == UnloadMode.MAVEN) {
+            Set<String> ignoredFilesPaths = new HashSet<>(mavenProjectsManager.getIgnoredFilesPaths());
+
             mavenProjectsManager.setIgnoredFilesPaths(ignoreFiles);
+            {
+                //lets force update ignored projects that now should be un-ignored
+                List<MavenProject> forceUpdate = selectedWithDependencies.stream().filter(p -> ignoredFilesPaths.contains(p.getFile().getPath())).collect(Collectors.toList());
+
+                System.out.println(String.format("force update list for %s has %d elements -> %s", project, forceUpdate.size(),
+                        forceUpdate.stream().map((p) -> p.getMavenId().getArtifactId()).collect(Collectors.toList())
+                ));
+                mavenProjectsManager.forceUpdateProjects(forceUpdate);
+            }
+            //
         } else {
             moduleManager.setUnloadedModules(ignoreModules);
         }
