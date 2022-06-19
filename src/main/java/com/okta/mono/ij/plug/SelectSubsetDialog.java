@@ -144,7 +144,7 @@ public class SelectSubsetDialog extends DialogWrapper {
         projectIds = projects.stream().map(MavenProject::getMavenId).collect(Collectors.toSet());
 
         System.out.println("SelectSubsetDialog.initData root projects " + rootProjects);
-        System.out.println("SelectSubsetDialog.initData project crappies " + projects);
+        System.out.println("SelectSubsetDialog.initData project " + projects);
     }
 
     @Override
@@ -262,6 +262,7 @@ public class SelectSubsetDialog extends DialogWrapper {
                 System.out.println(String.format("force update list for %s has %d elements -> %s", project, forceUpdate.size(),
                         forceUpdate.stream().map((p) -> p.getMavenId().getArtifactId()).collect(Collectors.toList())
                 ));
+                //Q for idea: do we want to force update projects or setting ignore list is sufficient?
                 mavenProjectsManager.forceUpdateProjects(forceUpdate);
             }
             //

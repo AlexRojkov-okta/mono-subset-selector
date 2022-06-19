@@ -35,7 +35,9 @@ public class ResetSelectionAction extends AnAction {
             List<MavenProject> allProjects = mavenProjectsManager.getProjects();
             Set<MavenProject> nonIgnoredProjects = mavenProjectsManager.getNonIgnoredProjects().stream().collect(Collectors.toSet());
             List<MavenProject> forceUpdateProjects = allProjects.stream().filter((p) -> nonIgnoredProjects.contains(p)).collect(Collectors.toList());
+            
             mavenProjectsManager.setIgnoredFilesPaths(Collections.emptyList());
+            //Q for idea: do we want to force update here or resetting the ignored list will suffice?
             mavenProjectsManager.forceUpdateProjects(forceUpdateProjects);
         }
     }
