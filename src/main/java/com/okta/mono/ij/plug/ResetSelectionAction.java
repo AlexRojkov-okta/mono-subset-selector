@@ -15,6 +15,7 @@ import org.jetbrains.idea.maven.project.MavenProjectsManager;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -29,8 +30,13 @@ public class ResetSelectionAction extends AnAction {
             ModuleManager moduleManager = ModuleManager.getInstance(project);
             moduleManager.setUnloadedModules(Collections.emptyList());
         } else {
+
             MavenProjectsManager mavenProjectsManager = MavenProjectsManager.getInstance(project);
+            List<MavenProject> allProjects = mavenProjectsManager.getProjects();
+            Set<MavenProject> nonIgnoredProjects = mavenProjectsManager.getNonIgnoredProjects().stream().collect(Collectors.toSet());
+            List<MavenProject> forceUpdateProjects = allProjects.stream().filter((p) -> nonIgnoredProjects.contains(p)).collect(Collectors.toList());
             mavenProjectsManager.setIgnoredFilesPaths(Collections.emptyList());
+            mavenProjectsManager.forceUpdateProjects(forceUpdateProjects);
         }
     }
 

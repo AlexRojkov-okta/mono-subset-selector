@@ -44,7 +44,7 @@ import java.util.stream.Collectors;
  * isApi and isSelenium are facets. When either is selected the module is added to the list of modules to keep
  */
 public class SelectSubsetDialog extends DialogWrapper {
-    public static UnloadMode unloadMode = new File("/tmp/subset-unload-maven").exists() ? UnloadMode.MAVEN : UnloadMode.IDEA;
+    public static UnloadMode unloadMode = new File("/tmp/subset-unload-idea").exists() ? UnloadMode.IDEA : UnloadMode.MAVEN;
 
     public static final String RUNTIMES_PREFIX = "runtimes.";
 
