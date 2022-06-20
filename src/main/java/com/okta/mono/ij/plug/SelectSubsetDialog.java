@@ -46,6 +46,7 @@ import java.util.stream.Collectors;
 public class SelectSubsetDialog extends DialogWrapper {
     public static UnloadMode unloadMode = new File("/tmp/subset-unload-idea").exists() ? UnloadMode.IDEA : UnloadMode.MAVEN;
 
+
     public static final String RUNTIMES_PREFIX = "runtimes.";
 
     //data
@@ -255,7 +256,7 @@ public class SelectSubsetDialog extends DialogWrapper {
             Set<String> ignoredFilesPaths = new HashSet<>(mavenProjectsManager.getIgnoredFilesPaths());
 
             mavenProjectsManager.setIgnoredFilesPaths(ignoreFiles);
-            {
+            if (forceUpdate()) {
                 //lets force update ignored projects that now should be un-ignored
                 List<MavenProject> forceUpdate = selectedWithDependencies.stream().filter(p -> ignoredFilesPaths.contains(p.getFile().getPath())).collect(Collectors.toList());
 
@@ -293,6 +294,10 @@ public class SelectSubsetDialog extends DialogWrapper {
         Graph<MavenProject> projectGraph = GraphGenerator.generate(CachingSemiGraph.cache(descriptionsGraph));
 
         return projectGraph;
+    }
+
+    public static boolean forceUpdate() {
+        return new File("/tmp/subset-force-update").exists();
     }
 }
 
