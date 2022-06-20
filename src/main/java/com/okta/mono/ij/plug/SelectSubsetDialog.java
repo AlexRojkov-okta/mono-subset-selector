@@ -44,9 +44,6 @@ import java.util.stream.Collectors;
  * isApi and isSelenium are facets. When either is selected the module is added to the list of modules to keep
  */
 public class SelectSubsetDialog extends DialogWrapper {
-    public static UnloadMode unloadMode = new File("/tmp/subset-unload-idea").exists() ? UnloadMode.IDEA : UnloadMode.MAVEN;
-
-
     public static final String RUNTIMES_PREFIX = "runtimes.";
 
     //data
@@ -252,7 +249,7 @@ public class SelectSubsetDialog extends DialogWrapper {
 
         System.out.println(String.format("ignore list for %s has %d elements", project, ignoreFiles.size()));
 
-        if (unloadMode == UnloadMode.MAVEN) {
+        if (unloadMode() == UnloadMode.MAVEN) {
             Set<String> ignoredFilesPaths = new HashSet<>(mavenProjectsManager.getIgnoredFilesPaths());
 
             mavenProjectsManager.setIgnoredFilesPaths(ignoreFiles);
@@ -294,6 +291,10 @@ public class SelectSubsetDialog extends DialogWrapper {
         Graph<MavenProject> projectGraph = GraphGenerator.generate(CachingSemiGraph.cache(descriptionsGraph));
 
         return projectGraph;
+    }
+
+    public static UnloadMode unloadMode() {
+        return new File("/tmp/subset-unload-idea").exists() ? UnloadMode.IDEA : UnloadMode.MAVEN;
     }
 
     public static boolean forceUpdate() {

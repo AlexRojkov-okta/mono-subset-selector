@@ -28,7 +28,7 @@ public class ResetSelectionAction extends AnAction {
     public void actionPerformed(@NotNull AnActionEvent e) {
         final Project project = e.getData(CommonDataKeys.PROJECT);
 
-        if (SelectSubsetDialog.unloadMode == UnloadMode.IDEA) {
+        if (SelectSubsetDialog.unloadMode() == UnloadMode.IDEA) {
             ModuleManager moduleManager = ModuleManager.getInstance(project);
             moduleManager.setUnloadedModules(Collections.emptyList());
         } else {
