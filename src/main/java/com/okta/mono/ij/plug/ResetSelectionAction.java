@@ -24,15 +24,18 @@ import static com.okta.mono.ij.plug.SelectSubsetDialog.forceUpdate;
  * Reset the modules to their default state - no modules should remain unloaded after this action complets
  */
 public class ResetSelectionAction extends AnAction {
+
+
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
         final Project project = e.getData(CommonDataKeys.PROJECT);
+        MavenProjectsManager mavenProjectsManager = MavenProjectsManager.getInstance(project);
+        ModuleManager moduleManager = ModuleManager.getInstance(project);
 
         if (SelectSubsetDialog.unloadMode() == UnloadMode.IDEA) {
-            ModuleManager moduleManager = ModuleManager.getInstance(project);
             moduleManager.setUnloadedModules(Collections.emptyList());
+            mavenProjectsManager.setIgnoredFilesPaths(Collections.emptyList());
         } else {
-            MavenProjectsManager mavenProjectsManager = MavenProjectsManager.getInstance(project);
             List<MavenProject> allProjects = mavenProjectsManager.getProjects();
             Set<MavenProject> nonIgnoredProjects = mavenProjectsManager.getNonIgnoredProjects().stream().collect(Collectors.toSet());
             List<MavenProject> forceUpdateProjects = allProjects.stream().filter((p) -> nonIgnoredProjects.contains(p)).collect(Collectors.toList());
