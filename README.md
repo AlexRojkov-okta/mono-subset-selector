@@ -1,4 +1,6 @@
-Build
+# Build
+
+To build the jar with the plugin execute the commands below
 
 ```shell
 # export JAVA_HOME, must be Java 11
@@ -12,12 +14,10 @@ chmod +x gradlew
 ./gradlew tasks buildPlugin
 ```
 
-plugin jar should be in
-`./build/libs/subsets-selector-1.0.SNAPSHOT.jar`
+## Where is the .jar file with plugin?
 
-or 
+When the build completes plugin jar should be in
 
-`./build/idea-sandbox/plugins/subsets-selector/lib/subsets-selector-1.0.SNAPSHOT.jar`
 
-Both files look the same to me
+1. `./build/libs/subsets-selector-1.0.SNAPSHOT.jar` or
 
