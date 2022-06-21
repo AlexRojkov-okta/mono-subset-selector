@@ -23,7 +23,7 @@ import static com.okta.mono.ij.plug.SelectSubsetDialog.forceUpdate;
 /**
  * Reset the modules to their default state - no modules should remain unloaded after this action complets
  */
-public class ResetSelectionAction extends AnAction {
+public class ClearSelectionAction extends AnAction {
 
 
     @Override

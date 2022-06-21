@@ -21,7 +21,7 @@
             <add-to-group group-id="MainMenu" relative-to-action="ToolsMenu" anchor="after">
             </add-to-group>
             <action id="ok.subsets.select" class="com.okta.mono.ij.plug.SelectSubsetAction" text="Select Subset"/>
-            <action id="ok.subsets.reset" class="com.okta.mono.ij.plug.ResetSelectionAction" text="Reset Subset Selection"/>
+            <action id="ok.subsets.reset" class="com.okta.mono.ij.plug.ClearSelectionAction" text="Clear Subset Selection"/>
         </group>
 
     </actions>

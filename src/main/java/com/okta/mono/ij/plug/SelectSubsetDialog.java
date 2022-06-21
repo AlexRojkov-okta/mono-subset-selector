@@ -81,7 +81,7 @@ public class SelectSubsetDialog extends DialogWrapper {
 
         // setup ui - a table in a scroll pane. table will contain a short module list.
         JBScrollPane scrollPane = new JBScrollPane();
-        System.getProperties().list(System.out);
+
         centerPanel.setLayout(new BorderLayout());
         centerPanel.add(scrollPane, BorderLayout.CENTER);
 
@@ -282,7 +282,7 @@ public class SelectSubsetDialog extends DialogWrapper {
             Iterator<MavenProject> getIn(MavenProject project) {
                 List<MavenProject> dependencies = project.getDependencies().stream().filter(a -> projectIds.contains(a.getMavenId())).map(a -> mavenProjectsManager.findProject(a)).collect(Collectors.toList());
 
-                System.out.println(String.format("project %s depends on [%s]", project, dependencies));
+                System.out.println(String.format("project %s depends on %s", project.getMavenId().getArtifactId(), dependencies.stream().map(p->p.getMavenId().getArtifactId()).collect(Collectors.toList())));
 
                 return dependencies.iterator();
             }
