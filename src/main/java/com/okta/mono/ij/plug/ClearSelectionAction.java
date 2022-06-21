@@ -3,12 +3,8 @@ package com.okta.mono.ij.plug;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
-import com.intellij.openapi.module.ModuleDescription;
 import com.intellij.openapi.module.ModuleManager;
-import com.intellij.openapi.module.UnloadedModuleDescription;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.openapi.vfs.pointers.VirtualFilePointer;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.idea.maven.project.MavenProject;
 import org.jetbrains.idea.maven.project.MavenProjectsManager;
@@ -29,6 +25,11 @@ public class ClearSelectionAction extends AnAction {
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
         final Project project = e.getData(CommonDataKeys.PROJECT);
+
+        if (project == null) {
+            return; // someone is just clicking around without a project being loaded, let's ignore... silently... :evil-face
+        }
+
         MavenProjectsManager mavenProjectsManager = MavenProjectsManager.getInstance(project);
         ModuleManager moduleManager = ModuleManager.getInstance(project);
 
@@ -46,10 +47,5 @@ public class ClearSelectionAction extends AnAction {
                 mavenProjectsManager.forceUpdateProjects(forceUpdateProjects);
             }
         }
-    }
-
-    @Override
-    public boolean isDumbAware() {
-        return false;
     }
 }

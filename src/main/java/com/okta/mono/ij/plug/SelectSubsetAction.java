@@ -11,13 +11,13 @@ public class SelectSubsetAction extends AnAction {
     public void actionPerformed(@NotNull AnActionEvent e) {
         Project project = e.getData(CommonDataKeys.PROJECT);
 
+        if (project == null) {
+            return; // someone is just clicking around without a project being loaded, let's ignore... silently... :evil-face
+        }
+
         SelectSubsetDialog dialog = new SelectSubsetDialog(project);
 
         dialog.show();
     }
 
-    @Override
-    public boolean isDumbAware() {
-        return false;
-    }
 }
