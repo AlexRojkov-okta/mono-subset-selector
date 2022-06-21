@@ -142,7 +142,7 @@ public class SelectSubsetDialog extends DialogWrapper {
         projectIds = projects.stream().map(MavenProject::getMavenId).collect(Collectors.toSet());
 
         System.out.println("SelectSubsetDialog.initData root projects " + rootProjects);
-        System.out.println("SelectSubsetDialog.initData project " + projects);
+        System.out.println("SelectSubsetDialog.initData projects " + projects);
     }
 
     @Override
@@ -208,7 +208,7 @@ public class SelectSubsetDialog extends DialogWrapper {
             }
         }
 
-        // MavenProject doesn't override equals/hashCode - relying on identity
+        // MavenProject doesn't override equals/hashCode - relying on identity is sufficient for this use
         final Set<MavenProject> selectedWithDependencies = new HashSet<>();
         final Graph<MavenProject> projectGraph = GraphAlgorithms.getInstance().invertEdgeDirections(buildProjectGraph());
         for (MavenProject p : selected) {
