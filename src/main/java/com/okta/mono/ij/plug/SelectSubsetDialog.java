@@ -1,5 +1,6 @@
 package com.okta.mono.ij.plug;
 
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
@@ -32,6 +33,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -44,6 +46,8 @@ import java.util.stream.Collectors;
  * isApi and isSelenium are facets. When either is selected the module is added to the list of modules to keep
  */
 public class SelectSubsetDialog extends DialogWrapper {
+    private static final Logger LOG = Logger.getInstance(SelectSubsetDialog.class);
+
     public static final String RUNTIMES_PREFIX = "runtimes.";
 
     //data
@@ -52,7 +56,7 @@ public class SelectSubsetDialog extends DialogWrapper {
     private List<MavenProject> rootProjects; //root projects in workspace
     private Set<MavenId> rootProjectIds; //MavenIds of root projects
     private List<MavenProject> projects; //all projects in workspace - same list as in the Maven plugin
-    private Set<MavenId> projectIds; //MavenIds of all projects from projects list
+    private Map<MavenId, MavenProject> projectsMap;
     //matches names on runtime.* prefix
     private ModuleNameMatcher moduleNameMatcher;
     //ui - user module / api / selenium selection
@@ -71,7 +75,19 @@ public class SelectSubsetDialog extends DialogWrapper {
 
         initData();
 
+        //initializes DialogWrapper; method super.init() invokes createCenterPanel below which sets up the UI
         init();
+    }
+
+    void initData() {
+        rootProjects = mavenProjectsManager.getRootProjects();
+        rootProjectIds = rootProjects.stream().map(MavenProject::getMavenId).collect(Collectors.toSet());
+
+        projects = mavenProjectsManager.getProjects();
+        projectsMap = projects.stream().collect(Collectors.toMap(MavenProject::getMavenId, p -> p));
+
+        LOG.warn("SelectSubsetDialog.initData root projects " + rootProjects);
+        LOG.warn("SelectSubsetDialog.initData projects " + projects);
     }
 
     @Override
@@ -79,7 +95,7 @@ public class SelectSubsetDialog extends DialogWrapper {
     JComponent createCenterPanel() {
         final JPanel centerPanel = new JPanel();
 
-        // setup ui - a table in a scroll pane. table will contain a short module list.
+        // setup ui - a table in a scroll pane - table will contain a short list of modules
         JBScrollPane scrollPane = new JBScrollPane();
 
         centerPanel.setLayout(new BorderLayout());
@@ -87,13 +103,13 @@ public class SelectSubsetDialog extends DialogWrapper {
 
         // prepare data for table model
         // each Object[] is a tuple of {MavenProject, boolean, boolean}
-        List<Object[]> data = projects.stream().filter(p -> moduleNameMatcher.isIncluded(p.getMavenId().getArtifactId()))
+        List<Object[]> data = projects.stream().filter(p -> moduleNameMatcher.matches(p.getMavenId().getArtifactId()))
                 .map(p -> new Object[]{p, false, false})
                 .collect(Collectors.toList());
 
         //  table has 3 columns - 1) readonly project 2) editable boolean column called 'api' 3) editable boolean column called selenium
-        tableModel = new DefaultTableModel(data.toArray(new Object[][]{{}}), new Object[]{"module", "api", "selenium"});
-        TableColumnModel tblCols = new DefaultTableColumnModel();
+        tableModel = new DefaultTableModel(data.toArray(new Object[][]{{}}), new Object[3]);
+        final TableColumnModel tblCols = new DefaultTableColumnModel();
         {
             // table column for the module name; readonly
             TableColumn moduleColumn = new TableColumn(0, 100);
@@ -134,17 +150,6 @@ public class SelectSubsetDialog extends DialogWrapper {
         return centerPanel;
     }
 
-    void initData() {
-        rootProjects = mavenProjectsManager.getRootProjects();
-        rootProjectIds = rootProjects.stream().map(MavenProject::getMavenId).collect(Collectors.toSet());
-
-        projects = mavenProjectsManager.getProjects();
-        projectIds = projects.stream().map(MavenProject::getMavenId).collect(Collectors.toSet());
-
-        System.out.println("SelectSubsetDialog.initData root projects " + rootProjects);
-        System.out.println("SelectSubsetDialog.initData projects " + projects);
-    }
-
     @Override
     protected void doOKAction() {
         MavenProject project = null;
@@ -177,87 +182,90 @@ public class SelectSubsetDialog extends DialogWrapper {
         final Set<MavenProject> selected = new HashSet<>();
         selected.add(project);
 
-        Optional<MavenProject> api = projects.stream().filter(p -> p.getMavenId().getArtifactId().equals(project.getMavenId().getArtifactId() + ".api")).findFirst();
+        final String projectArtifact = project.getMavenId().getArtifactId(); // artifact id of a subset e.g. runtimes.login
+
+        final Optional<MavenProject> api = projects.stream()
+                .filter(p -> p.getMavenId().getArtifactId().equals(projectArtifact + ".api"))
+                .findFirst();
         if (api.isPresent()) {
             selected.add(api.get());
         }
 
-        Optional<MavenProject> web = projects.stream().filter(p -> p.getMavenId().getArtifactId().equals(project.getMavenId().getArtifactId() + ".web")).findFirst();
+        final Optional<MavenProject> web = projects.stream()
+                .filter(p -> p.getMavenId().getArtifactId()
+                        .equals(projectArtifact + ".web")).findFirst();
         if (web.isPresent()) {
             selected.add(web.get());
         }
 
         // the if is for a test project that does not have proper okta-core structure
-        if (project.getMavenId().getArtifactId().startsWith(RUNTIMES_PREFIX)) {
-            final String baseName = project.getMavenId().getArtifactId().substring("runtimes.".length());
+        if (projectArtifact.startsWith(RUNTIMES_PREFIX)) {
+            final String baseName = projectArtifact.substring("runtimes.".length());
             if (isApiTest) {
                 final String name = "tests.api-" + baseName + ".client-test";
                 projects.stream().filter(p -> p.getMavenId().getArtifactId().equals(name))
                         .findFirst()
-                        .ifPresent((p) -> {
-                            selected.add(p);
-                        });
+                        .ifPresent(p -> selected.add(p));
             }
             if (isSelenium) {
                 final String name = "tests.selenium-" + baseName + ".client-test";
                 projects.stream().filter(p -> p.getMavenId().getArtifactId().equals(name))
                         .findFirst()
-                        .ifPresent((p) -> {
-                            selected.add(p);
-                        });
+                        .ifPresent((p) -> selected.add(p));
             }
         }
 
         // MavenProject doesn't override equals/hashCode - relying on identity is sufficient for this use
-        final Set<MavenProject> selectedWithDependencies = new HashSet<>();
+        final Set<MavenProject> dependencies = new HashSet<>();
         final Graph<MavenProject> projectGraph = GraphAlgorithms.getInstance().invertEdgeDirections(buildProjectGraph());
         for (MavenProject p : selected) {
-            GraphAlgorithms.getInstance().collectOutsRecursively(projectGraph, p, selectedWithDependencies);
+            // collectOutRecursively adds each p in selected
+            GraphAlgorithms.getInstance().collectOutsRecursively(projectGraph, p, dependencies);
         }
+        // trace to the root project and add all nodes in path to root project
 
         final Set<MavenProject> parents = new HashSet<>();
-        for (MavenProject p : selectedWithDependencies) {
-            MavenProject parent = p;
-
-            while ((parent = mavenProjectsManager.findProject(parent.getParentId())) != null) {
-                if (parents.contains(parent)) {
-                    break;
+        for (MavenProject p : dependencies) {
+            while ((p = projectsMap.get(p.getParentId())) != null) {
+                if (parents.contains(p)) {
+                    break; // we already processed this p
                 }
 
-                parents.add(parent);
+                parents.add(p);
 
-                if (rootProjectIds.contains(parent.getMavenId())) {
-                    break;
+                if (rootProjectIds.contains(p.getMavenId())) {
+                    break; //we found root project
                 }
             }
         }
 
-        selectedWithDependencies.addAll(parents);
+        dependencies.addAll(parents);
 
-        System.out.println(String.format("keep list for %s has %d elements -> %s", project, selectedWithDependencies.size(),
-                selectedWithDependencies.stream().map((p) -> p.getMavenId().getArtifactId()).collect(Collectors.toList())
+        LOG.warn(String.format("keep list for %s has %d elements -> %s", project, dependencies.size(),
+                dependencies.stream().map((p) -> p.getMavenId().getArtifactId()).collect(Collectors.toList())
         ));
 
-        List<String> ignoreFiles = new ArrayList<>();
-        List<String> ignoreModules = new ArrayList<>();
-        for (MavenProject p : projects) {
-            if (!selectedWithDependencies.contains(p)) {
+        final List<String> ignoreFiles = new ArrayList<>();
+        final List<String> ignoreModules = new ArrayList<>();
+        for (final MavenProject p : projects) {
+            if (!dependencies.contains(p)) {
                 ignoreFiles.add(p.getFile().getPath());
                 ignoreModules.add(p.getMavenId().getArtifactId());
             }
         }
 
-        System.out.println(String.format("ignore list for %s has %d elements", project, ignoreFiles.size()));
+        LOG.warn(String.format("ignore list for %s has %d elements", project, ignoreFiles.size()));
 
         if (unloadMode() == UnloadMode.MAVEN) {
-            Set<String> ignoredFilesPaths = new HashSet<>(mavenProjectsManager.getIgnoredFilesPaths());
+            final Set<String> ignoredFilesPaths = new HashSet<>(mavenProjectsManager.getIgnoredFilesPaths());
 
             mavenProjectsManager.setIgnoredFilesPaths(ignoreFiles);
             if (forceUpdate()) {
                 //lets force update ignored projects that now should be un-ignored
-                List<MavenProject> forceUpdate = selectedWithDependencies.stream().filter(p -> ignoredFilesPaths.contains(p.getFile().getPath())).collect(Collectors.toList());
+                final List<MavenProject> forceUpdate = dependencies.stream()
+                        .filter(p -> ignoredFilesPaths.contains(p.getFile().getPath())).collect(Collectors.toList());
 
-                System.out.println(String.format("force update list for %s has %d elements -> %s", project, forceUpdate.size(),
+                LOG.warn(String.format("force update list for %s has %d elements -> %s", project, forceUpdate.size(),
                         forceUpdate.stream().map((p) -> p.getMavenId().getArtifactId()).collect(Collectors.toList())
                 ));
                 //Q for idea: do we want to force update projects or setting ignore list is sufficient?
@@ -280,9 +288,9 @@ public class SelectSubsetDialog extends DialogWrapper {
             @Override
             public @NotNull
             Iterator<MavenProject> getIn(MavenProject project) {
-                List<MavenProject> dependencies = project.getDependencies().stream().filter(a -> projectIds.contains(a.getMavenId())).map(a -> mavenProjectsManager.findProject(a)).collect(Collectors.toList());
+                List<MavenProject> dependencies = project.getDependencies().stream().filter(a -> projectsMap.containsKey(a.getMavenId())).map(a -> mavenProjectsManager.findProject(a)).collect(Collectors.toList());
 
-                System.out.println(String.format("project %s depends on %s", project.getMavenId().getArtifactId(), dependencies.stream().map(p->p.getMavenId().getArtifactId()).collect(Collectors.toList())));
+                LOG.warn(String.format("project %s depends on %s", project.getMavenId().getArtifactId(), dependencies.stream().map(p -> p.getMavenId().getArtifactId()).collect(Collectors.toList())));
 
                 return dependencies.iterator();
             }
