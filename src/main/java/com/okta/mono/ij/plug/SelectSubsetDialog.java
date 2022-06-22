@@ -16,6 +16,7 @@ import com.intellij.util.graph.GraphGenerator;
 import com.intellij.util.graph.InboundSemiGraph;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.idea.maven.model.MavenCoordinate;
 import org.jetbrains.idea.maven.model.MavenId;
 import org.jetbrains.idea.maven.project.MavenProject;
 import org.jetbrains.idea.maven.project.MavenProjectsManager;
@@ -61,6 +62,7 @@ public class SelectSubsetDialog extends DialogWrapper {
     private ModuleNameMatcher moduleNameMatcher;
     //ui - user module / api / selenium selection
     private TableModel tableModel;
+    private JBTable table;
 
     public SelectSubsetDialog(Project project) {
         super(project);
@@ -104,7 +106,7 @@ public class SelectSubsetDialog extends DialogWrapper {
         // prepare data for table model
         // each Object[] is a tuple of {MavenProject, boolean, boolean}
         List<Object[]> data = projects.stream().filter(p -> moduleNameMatcher.matches(p.getMavenId().getArtifactId()))
-                .map(p -> new Object[]{p, false, false})
+                .map(p -> new Object[]{p, isApiPresent(p.getMavenId()), isSeleniumPresent(p.getMavenId())})
                 .collect(Collectors.toList());
 
         //  table has 3 columns - 1) readonly project 2) editable boolean column called 'api' 3) editable boolean column called selenium
@@ -143,8 +145,8 @@ public class SelectSubsetDialog extends DialogWrapper {
             tblCols.addColumn(moduleColumn);
         }
 
-        final JBTable table = new JBTable(tableModel, tblCols);
-
+        table = new JBTable(tableModel, tblCols);
+        table.setRowSelectionAllowed(true);
         scrollPane.getViewport().add(table);
 
         return centerPanel;
@@ -152,20 +154,10 @@ public class SelectSubsetDialog extends DialogWrapper {
 
     @Override
     protected void doOKAction() {
-        MavenProject project = null;
-        boolean isApi = false;
-        boolean isSelenium = false;
-        // find one module with either api or selenium value of 'true'
-        for (int i = 0; i < tableModel.getRowCount(); i++) {
-            isApi = (boolean) tableModel.getValueAt(i, 1);
-            isSelenium = (boolean) tableModel.getValueAt(i, 2);
-
-            if (isApi || isSelenium) {
-                project = (MavenProject) tableModel.getValueAt(i, 0);
-
-                break;
-            }
-        }
+        final int selectedRow = table.getSelectedRow();
+        final MavenProject project = (MavenProject) tableModel.getValueAt(selectedRow, 0);
+        final boolean isApi = (boolean) tableModel.getValueAt(selectedRow, 1);
+        final boolean isSelenium = (boolean) tableModel.getValueAt(selectedRow, 2);
 
         // we are only loading one module at this point - the first we encounter when checking values for facets ( api and selenium )
         if (project != null) {
@@ -175,6 +167,46 @@ public class SelectSubsetDialog extends DialogWrapper {
         super.doOKAction();
     }
 
+    private boolean isApiPresent(MavenCoordinate mavenId) {
+        final String artifactId = mavenId.getArtifactId();
+        if (!artifactId.startsWith(RUNTIMES_PREFIX)) {
+            return false;
+        }
+
+        final String name = makeApiArtifactId(artifactId);
+
+        return projects.stream().filter(p -> p.getMavenId().getArtifactId().equals(name))
+                .findFirst().isPresent();
+    }
+
+    private boolean isSeleniumPresent(MavenCoordinate mavenId) {
+        final String artifactId = mavenId.getArtifactId();
+        if (!artifactId.startsWith(RUNTIMES_PREFIX)) {
+            return false;
+        }
+
+        final String name = makeSeleniumArtifactId(artifactId);
+
+        return projects.stream().filter(p -> p.getMavenId().getArtifactId().equals(name))
+                .findFirst().isPresent();
+    }
+
+    private String makeApiArtifactId(String artifactId) {
+        final String baseName = artifactId.substring(RUNTIMES_PREFIX.length());
+
+        final String name = "tests.api-" + baseName + ".client-test";
+
+        return name;
+    }
+
+    private String makeSeleniumArtifactId(String artifactId) {
+        final String baseName = artifactId.substring(RUNTIMES_PREFIX.length());
+
+        final String name = "tests.selenium-" + baseName + ".client-test";
+
+        return name;
+    }
+
     /**
      * Build unload list of modules and unload them
      */
@@ -182,10 +214,10 @@ public class SelectSubsetDialog extends DialogWrapper {
         final Set<MavenProject> selected = new HashSet<>();
         selected.add(project);
 
-        final String projectArtifact = project.getMavenId().getArtifactId(); // artifact id of a subset e.g. runtimes.login
+        final String artifactId = project.getMavenId().getArtifactId(); // artifact id of a subset e.g. runtimes.login
 
         final Optional<MavenProject> api = projects.stream()
-                .filter(p -> p.getMavenId().getArtifactId().equals(projectArtifact + ".api"))
+                .filter(p -> p.getMavenId().getArtifactId().equals(artifactId + ".api"))
                 .findFirst();
         if (api.isPresent()) {
             selected.add(api.get());
@@ -193,22 +225,22 @@ public class SelectSubsetDialog extends DialogWrapper {
 
         final Optional<MavenProject> web = projects.stream()
                 .filter(p -> p.getMavenId().getArtifactId()
-                        .equals(projectArtifact + ".web")).findFirst();
+                        .equals(artifactId + ".web")).findFirst();
         if (web.isPresent()) {
             selected.add(web.get());
         }
 
         // the if is for a test project that does not have proper okta-core structure
-        if (projectArtifact.startsWith(RUNTIMES_PREFIX)) {
-            final String baseName = projectArtifact.substring("runtimes.".length());
+        if (artifactId.startsWith(RUNTIMES_PREFIX)) {
             if (isApiTest) {
-                final String name = "tests.api-" + baseName + ".client-test";
+                final String name = makeApiArtifactId(artifactId);
                 projects.stream().filter(p -> p.getMavenId().getArtifactId().equals(name))
                         .findFirst()
                         .ifPresent(p -> selected.add(p));
             }
             if (isSelenium) {
-                final String name = "tests.selenium-" + baseName + ".client-test";
+                final String name = makeSeleniumArtifactId(artifactId);
+
                 projects.stream().filter(p -> p.getMavenId().getArtifactId().equals(name))
                         .findFirst()
                         .ifPresent((p) -> selected.add(p));
